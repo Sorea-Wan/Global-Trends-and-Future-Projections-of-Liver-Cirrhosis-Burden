@@ -1,0 +1,94 @@
+
+#1.安装并加载R包
+```{r}
+#install.packages("tidyverse")
+#install.packages("ggplot2")
+#install.packages("scales")
+library(tidyverse)
+library(ggplot2)
+library(scales)
+
+
+#2.加载数据
+
+Global_2019_AgeandSex <- read.csv('C:\\Users\\86177\\Desktop\\肝硬化\\年龄性别\\agesexrisk.csv') 
+
+
+#3.数据清洗（3.1字符串；3.2筛选行与列；3.3确定用于作图的变量内部的顺序）
+
+##3.1 字符串（如1-4 year）预处理
+Global_2019_AgeandSex$age_name <- str_split(Global_2019_AgeandSex$age_name, ' ', simplify = T)[,1]
+
+##3.2 筛选行与列 (20age_groups * 2sex * 2metric = 80)
+library(ggplot2)
+
+# 数据准备
+Global_2019_AgeandSex_Prevalance <- Global_2019_AgeandSex %>%
+  select(location_name, year, sex_name, age_name, measure_name, cause_name, metric_name, val, upper, lower) %>%
+  filter(location_name == "Global",
+         year == "2021",
+         age_name %in% c("<5", "5-9", "10-14", "15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49", "50-54", "55-59", "60-64", "65-69", "70-74", "75-79", "80-84", "85-89", "90-94", "95+"),
+         sex_name %in% c("Male", "Female"),
+         measure_name == 'Incidence',
+         cause_name != "Cirrhosis and other chronic liver diseases",
+         metric_name %in% c('Number', 'Rate')) %>%
+  mutate(val = if_else(metric_name == 'Number', val / 100000, val / 33.33),
+         upper = if_else(metric_name == 'Number', upper / 100000, upper / 33.33),
+         lower = if_else(metric_name == 'Number', lower / 100000, lower / 33.33))
+
+# 确定作图相关的变量（年龄、性别）内部信息的顺序
+Global_2019_AgeandSex_Prevalance$age_name <- factor(Global_2019_AgeandSex_Prevalance$age_name, levels = c('<5', '5-9', '10-14', '15-19', '20-24', '25-29', '30-34', '35-39', '40-44', '45-49', '50-54', '55-59', '60-64', '65-69', '70-74', '75-79', '80-84', '85-89', '90-94', '95+'))
+Global_2019_AgeandSex_Prevalance$sex_name <- factor(Global_2019_AgeandSex_Prevalance$sex_name, levels = c('Male', 'Female'))
+Global_2019_AgeandSex_Prevalance$cause_name <- factor(Global_2019_AgeandSex_Prevalance$cause_name, levels = c('NAFLD','Chronic hepatitis B','Chronic hepatitis C','Alcohol use','Other causes'))
+cause_colors <- c(
+  "NAFLD" = c("Male" = "#0D47A1", "Female" = "#4A148C"),  # 深蓝色和深紫色
+  "Chronic hepatitis B" = c("Male" = "#1565C0", "Female" = "#6A1B9A"),  # 绿色和橙色
+  "Chronic hepatitis C" = c("Male" = "#42A5F5", "Female" = "#8E24AA"), 
+  "Alcohol use" = c("Male" = "#64B5F6", "Female" = "#AB47BC"), 
+  "Other causes" = c("Male" = "#90CAF9", "Female" = "#CE93D8")
+
+
+)
+
+
+# 绘制堆叠柱状图
+colors <- unlist(cause_colors)
+
+# 绘制堆叠柱状图
+plot <- ggplot(data = subset(Global_2019_AgeandSex_Prevalance, metric_name == "Number"), 
+               aes(x = age_name, y = val, fill = interaction(cause_name, sex_name), group = sex_name)) +
+  geom_col(width = 0.6, position = position_dodge(width = 0.6)) +
+  scale_fill_manual(values = colors) +
+  scale_y_continuous(
+    name = "Total Incidence cases（00,000s）",
+    breaks = seq(0, 45, by = 9),
+    limits = c(0, 45),
+    expand = c(0, 0)) +
+  labs(x = "Age Group",
+       y = "Total Incidence cases（00,000s）",
+       fill = "Cause Name") +
+  theme_bw() +
+  theme(panel.grid.minor = element_blank(),
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor.x = element_blank(),
+        legend.position = 'right',
+        legend.title = element_blank(),
+        legend.key.size = unit(0.2, "cm"),  # 进一步缩小图例大小
+        legend.spacing.x = unit(0.05, "cm"),  # 缩小图例项之间的间距
+        legend.margin = margin(0.05, 0.05, 0.05, 0.05, unit = "cm"),  # 调整图例边距
+        legend.text = element_text(size = 5), 
+        axis.text = element_text(size=8),
+        axis.text.x = element_text(angle = 30, vjust = 1, hjust = 1),
+        axis.text.y.left = element_text(margin = margin(r = 0)),
+        axis.title = element_text(size = 8),
+        axis.ticks = element_line()) +
+  xlab('Age group (years)')
+
+# 显示图表
+print(plot)
+
+#5.文件保存
+
+ggsave(plot, file = 'C:\\Users\\86177\\Desktop\\肝硬化\\pic\\incidence1.tiff',units = 'cm', height = 6, width = 12)
+
+
