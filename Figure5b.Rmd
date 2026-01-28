@@ -1,0 +1,82 @@
+
+
+#1.安装并加载相关R包
+
+#install.packages("tidyverse")
+#install.packages("readxl")
+#install.packages("ggplot2")
+
+library(readxl)
+library(tidyverse)
+library(ggplot2)
+
+
+#2.加载数据(主要有三个:1.全球和21个地区从1990到2019年的SDI数据；2.全球和21个地区在2019年的DALYs ASR；3.全球和21个地区的list)
+##获取SDI_value文件(这个文件是location × year的SDI矩阵)
+SDI_value <- read.csv('C:\\Users\\86177\\Desktop\\肝硬化\\sdi散点图\\ids.csv', header=T)
+ #读入xlsx文件的第二个sheet,跳过第一行
+
+##获取Global和21regions的COPD疾病负担数据
+Global_21Regions_1990to2019 <- read.csv('C:\\Users\\86177\\Desktop\\肝硬化\\sdi散点图\\regions.csv', header=T)
+
+##获取Global和21regions的list文件
+order_globalandregions <- read.csv("C:\\Users\\86177\\Desktop\\肝硬化\\sdi散点图\\list.csv",header = F)
+
+
+#3.数据清洗（即需要整理出3列数据，分别是Global和21个region的location_year pair，SDI值，疾病负担指标如ASR）
+
+##3.1 制作第一列数据：Global和21个regions的"location_year"组合，一共22*30=660行，在整理第二列和第三列数据的时候，整理
+
+##3.2 制作第二列数据：Global和21个regions在1990-2019年的SDI数据
+SDI_value_Global_21Regions_long <- SDI_value %>%
+  filter(location %in% order_globalandregions$V1) %>%
+  mutate(location_year = paste(location, year, sep = "_")) %>%
+  select(location_year, mean_value)
+
+
+
+##3.3 制作第三列数据：全球和21个地区，1990-2019年，年龄标准化的DALYs rate
+Global_21regions_DALYs_ASR <- Global_21Regions_1990to2019 %>%
+  select("location_name","year","sex_name","age_name","measure_name","metric_name","val") %>%
+  filter(location_name %in% order_globalandregions$V1,
+         sex_name == "Both",
+         age_name == "Age-standardized",
+         measure_name == "DALYs (Disability-Adjusted Life Years)",
+         metric_name == "Rate") %>%
+  rename("DALYs_ASR" = "val") %>% #列名重命名
+  mutate(DALYs_ASR = round(DALYs_ASR/1000,5),
+    location_year = paste0(location_name,"_",year)) #用于后续数据框合并
+  
+##3.4 将上述数据框合并（基于location_time组合）
+Global_21regions_DALYs_ASR_LocationandYear <- left_join(SDI_value_Global_21Regions_long,Global_21regions_DALYs_ASR, by = 'location_year') 
+#因为用于相关性分析的变量需要是数值型变量，而不能是字符串型。明确变量类型用class()函数
+Global_21regions_DALYs_ASR_LocationandYear <- Global_21regions_DALYs_ASR_LocationandYear[, c(1, 2, 3,9)]
+names(Global_21regions_DALYs_ASR_LocationandYear)[names(Global_21regions_DALYs_ASR_LocationandYear) == "mean_value"] <- "SDI"
+cor_test <- cor.test(Global_21regions_DALYs_ASR_LocationandYear[,"SDI",drop = T], Global_21regions_DALYs_ASR_LocationandYear[, "DALYs_ASR", drop = TRUE])
+cor_r <- cor_test$estimate
+cor_int<- cor_test$conf.int
+cor_p <- cor_test$p.value
+Corr_Global_Regions_SDI <- 
+ggplot(Global_21regions_DALYs_ASR_LocationandYear, 
+       aes(x = Global_21regions_DALYs_ASR_LocationandYear[,"SDI", drop = TRUE], 
+           y = Global_21regions_DALYs_ASR_LocationandYear[,"DALYs_ASR", drop = TRUE])) +
+  geom_point(aes(color = location_name, shape = location_name)) +
+  scale_shape_manual(values = 1:22) +
+  geom_smooth(colour = 'black', stat = "smooth", method = 'loess', se = FALSE, span = 0.5) +
+  ylab(paste0("ASDR", '\n (100,000 persons)')) +
+  xlab("Sociodemographic index") +
+  theme_bw(base_size = 8) +
+  theme(panel.background = element_rect(fill = "transparent"),
+        plot.background = element_rect(fill = "transparent"),
+        legend.position = 'top',
+        legend.key.size = unit(0.3, "cm"),
+        legend.title = element_blank(), 
+        axis.text.x = element_text(face = "bold", size = 8),
+        axis.text.y = element_text(face = "bold", size = 8),
+        axis.title.x = element_text(face = "bold", size = 10),
+        axis.title.y = element_text(face = "bold", size = 10))
+Corr_Global_Regions_SDI
+#5.文件储存
+
+ggsave(Corr_Global_Regions_SDI, file = 'C:\\Users\\86177\\Desktop\\肝硬化\\pic\\asdrregion.tiff', width = 8, height = 4)
+

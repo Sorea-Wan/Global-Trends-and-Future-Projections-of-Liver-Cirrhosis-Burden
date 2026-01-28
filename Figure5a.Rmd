@@ -1,0 +1,94 @@
+
+
+#1.安装并加载相关R包
+#install.packages("readxl")
+#install.packages("tidyverse")
+#install.packages("ggplot2")
+library(readxl)
+library(tidyverse)
+library(ggplot2)
+
+
+
+#2.加载数据
+##获取SDI_value文件(这个文件是location × year的SDI矩阵)
+SDI <- read.csv('C:\\Users\\86177\\Desktop\\肝硬化\\sdi散点图\\ids.csv',header=T) #读入xlsx文件的第二个sheet,跳过第一行
+
+##获取204个国家的COPD疾病负担数据（我们直接利用TableS4的数据）
+asr <- read.csv('C:\\Users\\86177\\Desktop\\肝硬化\\sdi散点图\\countries.csv', header=T)
+
+##获取204个国家的list文件（我们直接利用TableS4的数据）
+list <- read.csv('C:\\Users\\86177\\Desktop\\肝硬化\\sdi散点图\\countrylist.csv')
+
+
+#3.数据清洗（即需要整理出3列数据，分别是204个国家的location list，SDI值，疾病负担指标ASIR） 
+##3.1 制作第一列数据：204个国家的location list
+
+
+countrylist <- asr %>%
+  filter(location_name %in% list$Country) %>%
+  select(location_name) %>%
+  rename(Location = location_name) %>%
+  unique()
+##3.2 制作第二列数据：204个国家的在2019年的SDI数据
+
+SDI2021 <- SDI %>%
+  filter(year == 2021)
+
+# 提取204个国家在2019年的SDI数据
+SDI_2021 <- SDI2021 %>%
+  filter(location %in% countrylist$Location) %>%
+  select(location, mean_value) %>%
+ rename("Location" = "location")
+
+##3.3 制作第三列数据：204个国家，2019年，年龄标准化的DALYs rate
+ASR <- asr %>%
+  select("location_name","year","sex_name","age_name","measure_name","metric_name","val") %>%
+  filter(location_name %in% countrylist$Location,
+         year == "2021",
+         sex_name == "Both",
+         age_name == "Age-standardized",
+         measure_name == "Incidence",
+         metric_name == "Rate") %>%
+  rename("Location" = "location_name") #列名重命名
+  
+
+##3.4 将上述数据框合并（基于location）
+C_1 <- left_join(SDI_2021,ASR, by = 'Location') 
+C_2 <- left_join(ASR, countrylist, by = 'Location')
+
+#因为用于相关性分析的变量需要是数值型变量，而不能是字符串型。明确变量类型用class()函数
+
+
+#4.计算相关系数并可视化
+##4.1 计算相关系数
+cor_test <- cor.test(C_1[,"mean_value",drop = T], C_1[, "val", drop = TRUE])
+
+cor_r <- cor_test$estimate
+cor_int<- cor_test$conf.int
+cor_p <- cor_test$p.value
+
+##4.2 基于ggplot函数进行可视化
+
+library(ggplot2)
+#label <- sprintf("R = %.2f (%.2f to %.2f)\n p = %s", round(cor_r, 2), round(cor_int[1],2), round(cor_int[2],2),
+#ifelse(cor_p<0.001,"< 0.001",round(cor_p,2)))
+
+plotSDI <- ggplot(C_1, aes(x = mean_value, y = val)) +
+  geom_point(aes(color = Location)) +  
+  geom_text(aes(label = Location, color = Location), hjust = 0, vjust = 0, size = 5) +  
+  geom_smooth(colour='black',stat = "smooth",method='loess',se=F,span=0.5) + 
+  ylab(paste0("ASIR",'\n (100,000 persons)')) +
+  xlab("Socio-demographic index") +
+  theme_bw(base_size = 10) +
+  theme(panel.background = element_rect(fill = "transparent"),
+        plot.background = element_rect(fill = "transparent"),
+        legend.position = 'top',
+        legend.key.size = unit(0.3, "cm"),
+        legend.title = element_blank(),
+        axis.text.x = element_text(face = "bold",size = 10),
+        axis.text.y = element_text(face = "bold",size = 10),
+        axis.title.x = element_text(face = "bold",size = 20),
+        axis.title.y = element_text(face = "bold",size = 20)) 
+
+ ggsave(plotSDI, file = 'C:\\Users\\86177\\Desktop\\肝硬化\\pic\\countryasir.tiff', width = 22, height = 22)
