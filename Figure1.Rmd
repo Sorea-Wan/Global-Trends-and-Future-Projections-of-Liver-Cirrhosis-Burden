@@ -218,3 +218,4 @@ Prevalence2019_ASR_map_plot  <- Prevalence2019_ASR_map_plot / plot3 + plot_layou
 
 ggsave(Prevalence2019_ASR_map_plot, file = 'C:\\Users\\86177\\Desktop\\肝硬化\\pic\\dalyeapcmap.tiff', units = 'cm', width = 24, height = 17.8)
 
+
