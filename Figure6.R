@@ -96,14 +96,14 @@ temp2 <- rank %>%
   filter(metric_name=="Rate") %>%
   filter(year==2021)
 # 建模计算斜度指数
-fit1 <- lm(data = temp1,val~weighted_order)
-fit2 <- lm(data = temp2,val~weighted_order)
+fit1 <- lm(data = temp1,val~weighted_order,weights = pop)
+fit2 <- lm(data = temp2,val~weighted_order,weights = pop)
 # 查看是否存在异方差（存在异方差）
 ncvTest(fit1)
 ncvTest(fit2)
 # 使用稳健（robust）回归：重复迭代加权
-r.huber1 <- rlm(data = temp1,val~weighted_order)
-r.huber2 <- rlm(data = temp2,val~weighted_order)
+r.huber1 <- rlm(data = temp1,val~weighted_order,weights = pop)
+r.huber2 <- rlm(data = temp2,val~weighted_order,weights = pop)
 # 获得系数与截距
 coef(r.huber1)
 coef(r.huber2)
@@ -205,9 +205,20 @@ temp4 <- ci %>%
   filter(metric_name=="Number") %>%
   filter(year==2021)
 ##计算集中指数
-CI_1990 <- 2 * (sum(temp3$frac_daly) / nrow(temp3)) - 1
+calc_CI <- function(df){
 
-CI_2021 <- 2 * (sum(temp4$frac_daly) / nrow(temp4)) - 1
+  x <- df$frac_population
+  y <- df$frac_daly
+
+  area <- sum(diff(x) * (head(y,-1) + tail(y,-1)) / 2)
+
+  CI <- 1 - 2 * area
+
+  return(CI)
+}
+
+CI_1990 <- calc_CI(temp3)   # >>> 修改
+CI_2021 <- calc_CI(temp4)   # >>> 修改
 
 theme_pub <- theme_bw(base_size = 16) +
   theme(
@@ -278,3 +289,4 @@ p2 <- ci %>%
   theme_pub
 p2
 ggsave(p2, file = 'C:\\Users\\86177\\Desktop\\不平等\\incidence2.tiff',units = 'cm', height = 15, width = 22)
+
